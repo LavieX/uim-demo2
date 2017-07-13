@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+IFS=$'\n\t'
+
+case "$#" in
+    1)
+        SECRET=$1
+        ;;
+    *)
+        echo $'\n\tUsage: jwtgen <secret>\n'
+        exit 1
+esac
+
+HEADER='{
+    "typ": "JWT",
+    "alg": "HS256"
+}'
+PAYLOAD='{
+    "exp": '$(($(date +%s)+7200))',
+    "iat": '$(date +%s)',
+    "org": "'$ORG'",
+    "project": "'$PROJ'"
+}'
+
+function base64_encode()
+{
+    declare INPUT=${1:-$(</dev/stdin)};
+    echo -n "$INPUT" | openssl enc -base64 | tr '+\/' '-_' | tr -d '=' | tr -d '\r\n'
+}
+
+# For some reason, probably bash-related, JSON that terminates with an integer
+# must be compacted. So it must be something like `{"userId":1}` or else the
+# signing gets screwed up. Weird, but using `jq -c` works to fix that.
+function json() {
+    declare INPUT=${1:-$(</dev/stdin)};
+    echo -n "$INPUT" | jq -c .
+}
+
+function hmacsha256_sign()
+{
+    declare INPUT=${1:-$(</dev/stdin)};
+    echo -n "$INPUT" | openssl dgst -binary -sha256 -hmac "${SECRET}"
+}
+
+HEADER_BASE64=$(echo "${HEADER}" | json | base64_encode)
+PAYLOAD_BASE64=$(echo "${PAYLOAD}" | json | base64_encode)
+
+HEADER_PAYLOAD=$(echo "${HEADER_BASE64}.${PAYLOAD_BASE64}")
+SIGNATURE=$(echo "${HEADER_PAYLOAD}" | hmacsha256_sign | base64_encode)
+
+echo "${HEADER_PAYLOAD}.${SIGNATURE}"

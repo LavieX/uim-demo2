@@ -1,0 +1,11 @@
+version: '3'
+services:
+  hello-spring-boot:
+    image: hello-spring-boot
+    environment:
+      - PUBLISH=true
+      - SERVICE_PORTS=8080
+  clojure-lein:
+    image: clojure-lein
+    environment:
+      - PUBLISH=true

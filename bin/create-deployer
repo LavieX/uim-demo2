@@ -1,0 +1,9 @@
+#!/bin/bash
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+docker swarm init
+
+docker login -u 'stsatlas+atlassamplerobot' -p '58FI0Q3GDJM4E2IPE9NEJEHKE3NS2NAGFR1DLIRFOW08J2YRPB6WRE8AVWHXNGAC' quay.io
+
+docker stack deploy -c $DIR/deployer-compose.yml --with-registry-auth sts-atlas_atlas-deploy
+docker stack deploy -c $DIR/load-balancer.yml --with-registry-auth sts-atlas_load-balancer

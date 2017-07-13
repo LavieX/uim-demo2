@@ -1,0 +1,113 @@
+#!/bin/bash
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+ORG="uim"
+PROJ="demo2"
+DEPLOYMENT_URL="http://deployer.sts-atlas_atlas-deploy.swarm.commonstack.io/org/$ORG/project/$PROJ"
+
+function generateJwt {
+    if [ -z "$JWT_SECRET" ]; then
+        echo $"JWT_SECRET not found" >&2
+        kill -INT $$
+    fi
+
+    echo "Authorization: Token $(. $DIR/jwtgen $JWT_SECRET)"
+}
+
+function service {
+    SERVICE_DIR=$DIR/../$1
+    RUNNER=$SERVICE_DIR/bin/service
+
+    # if [ ! -d "$SERVICE_DIR" ]; then
+    #     echo $"Unknown service: $1" >&2
+    #     kill -INT $$
+    # fi
+
+    if [ ! -f "$RUNNER" ]; then
+        echo $"Service runner not found: $RUNNER" >&2
+        kill -INT $$
+    fi
+
+    cd $SERVICE_DIR
+
+    case "$2" in
+        install)
+            . $RUNNER install
+            ;;
+        test)
+            . $RUNNER test
+            ;;
+        coverage)
+            . $RUNNER coverage
+            ;;
+        start)
+            . $RUNNER start
+            ;;
+        dockerize)
+            . $RUNNER dockerize
+            ;;
+        logs)
+            JWT=`generateJwt`
+            curl -f -X GET --header "$JWT" $DEPLOYMENT_URL/service/$1/logs
+            ;;
+        local-dockerize)
+            . $RUNNER local-dockerize
+            ;;
+
+        *)
+            echo $"Unknown command: $2" >&2
+            kill -INT $$
+    esac
+}
+
+function execute_in_all_services {
+    EXIT_CODE=0
+    for dir in $DIR/../*/bin/
+    do
+        dir=$(dirname $dir)
+        service ${dir##*/} $1 || EXIT_CODE=$?
+    done
+    exit $EXIT_CODE
+}
+
+case "$#" in
+    1)
+        case "$1" in
+            deploy)
+                JWT=`generateJwt`
+                curl -f -X POST --header "$JWT" -F "file=@$DIR/../docker-compose.yml" $DEPLOYMENT_URL
+                ;;
+            poll)
+                JWT=`generateJwt`
+                curl -f -X GET --header "$JWT" $DEPLOYMENT_URL
+                ;;
+            remove)
+                read -p "Are you sure you want to remove your production deploy? " -n 1 -r
+                echo
+                if [[ $REPLY =~ ^[Yy]$ ]]
+                then
+                    JWT=`generateJwt`
+                    curl -f -X DELETE --header "$JWT" $DEPLOYMENT_URL
+                fi
+                ;;
+            local-deploy)
+                JWT=`generateJwt`
+                curl -f -X POST --header "$JWT" -F "file=@$DIR/../local-docker-compose.yml" -H "Host: deployer.sts-atlas_atlas-deploy.swarm.commonstack.io" http://localhost/org/$ORG/project/$PROJ
+                ;;
+            local-poll)
+                JWT=`generateJwt`
+                curl -f -X GET -H "$JWT" -H "Host: deployer.sts-atlas_atlas-deploy.swarm.commonstack.io" http://localhost/org/$ORG/project/$PROJ
+                ;;
+            *)
+                execute_in_all_services $1
+                ;;
+        esac
+        ;;
+    2)
+        service $2 $1
+        ;;
+    *)
+        echo $'\n\tUsage: atlas <command> <service>\n'
+        echo $'\tImplemented Commands:\n\n\t\tinstall\n\t\ttest\n\t\tstart\n\t\tdockerize\n\t\tdeploy\n'
+        exit 1
+esac

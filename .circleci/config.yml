@@ -1,0 +1,119 @@
+version: 2
+jobs:
+  checkout_code:
+    docker:
+      - image: circleci/openjdk:8-jdk
+      - image: circleci/clojure:lein-2.7.1
+    working_directory: ~/samples
+    steps:
+      - checkout
+      - run:
+          name: save SHA to a file
+          command: echo $CIRCLE_SHA1 > .circle-sha
+      - save_cache:
+          key: sample-repo-{{ checksum ".circle-sha" }}
+          paths:
+            - ~/samples
+
+  java_spring_build:
+    docker:
+      - image: circleci/openjdk:8-jdk
+    working_directory: ~/samples
+    steps:
+      - run:
+          name: save SHA to a file
+          command: echo $CIRCLE_SHA1 > .circle-sha
+      - restore_cache:
+          keys:
+            - sample-repo-{{ checksum ".circle-sha" }}
+      - restore_cache:
+          keys:
+            - hello-spring-boot-{{ checksum "hello-spring-boot/pom.xml" }}
+      - run:
+          name: Test
+          command: bin/atlas test hello-spring-boot
+      - store_test_results:
+          path: ~/samples/hello-spring-boot/target/surefire-reports
+      - save_cache:
+          key: sample-repo-{{ checksum ".circle-sha" }}
+          paths:
+            - ~/samples
+      - save_cache:
+          paths:
+            - ~/.m2
+          key: hello-spring-boot-{{ checksum "hello-spring-boot/pom.xml" }}
+
+  clojure_lein_build:
+    docker:
+      - image: circleci/clojure:lein-2.7.1
+    working_directory: ~/samples
+    environment:
+      LEIN_ROOT: nbd
+      JVM_OPTS: -Xmx3200m
+    steps:
+      - run:
+          name: save SHA to a file
+          command: echo $CIRCLE_SHA1 > .circle-sha
+      - restore_cache:
+          keys:
+            - sample-repo-{{ checksum ".circle-sha" }}
+      - restore_cache:
+          keys:
+            - clojure-lein-{{ checksum "clojure-lein/project.clj" }}
+      - run:
+          name: Test
+          command: bin/atlas test clojure-lein
+      - store_test_results:
+          path: ~/samples/clojure-lein/target
+      - save_cache:
+          key: sample-repo-{{ checksum ".circle-sha" }}
+          paths:
+            - ~/samples
+      - save_cache:
+          paths:
+            - ~/.m2
+            - ~/.lein
+          key: clojure-lein-{{ checksum "clojure-lein/project.clj" }}
+
+  deploy:
+    machine:
+      enabled: true
+    working_directory: ~/samples
+    steps:
+      - run:
+          name: save SHA to a file
+          command: echo $CIRCLE_SHA1 > .circle-sha
+      - restore_cache:
+          keys:
+            - sample-repo-{{ checksum ".circle-sha" }}
+      - restore_cache:
+          keys:
+            - clojure-lein-{{ checksum "clojure-lein/project.clj" }}
+      - restore_cache:
+          keys:
+            - hello-spring-boot-{{ checksum "hello-spring-boot/pom.xml" }}
+      - deploy:
+          name: Maybe Deploy
+          command: |
+            if [ "${CIRCLE_BRANCH}" == "master" ]; then
+              docker login quay.io -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}
+              bin/atlas dockerize
+              bin/atlas deploy
+            fi
+
+workflows:
+  version: 2
+  build-and-deploy:
+    jobs:
+      - checkout_code
+      - java_spring_build:
+          requires:
+            - checkout_code
+      - clojure_lein_build:
+          requires:
+            - checkout_code
+      - deploy:
+          requires:
+            - checkout_code
+            - java_spring_build
+            - clojure_lein_build

@@ -1,0 +1,11 @@
+version: '3'
+services:
+  hello-spring-boot:
+    image: "quay.io/stsatlas/uim-demo2-spring-boot"
+    environment:
+      - PUBLISH=true
+      - SERVICE_PORTS=8080
+  clojure-lein:
+    image: "quay.io/stsatlas/uim-demo2-clojure-lein"
+    environment:
+      - PUBLISH=true

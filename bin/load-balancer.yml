@@ -1,0 +1,18 @@
+version: "3"
+services:
+  lb:
+    image: quay.io/stsatlas/sts-atlas-atlas-deploy-haproxy
+    depends_on:
+      - deployer
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    deploy:
+      mode: global
+      placement:
+        constraints: [node.role == manager]
+    ports:
+      - 80:80
+    networks:
+      - lb-net
+networks:
+  lb-net:

@@ -1,0 +1,23 @@
+#!/bin/bash
+
+case "$1" in
+    install)
+        mvn dependency:go-offline
+        ;;
+    test)
+        mvn test
+        ;;
+    start)
+        mvn spring-boot:run
+        ;;
+    dockerize)
+        mvn install docker:build -DskipTests && \
+          mvn docker:push
+        ;;
+    local-dockerize)
+        mvn install docker:build -DskipTests -DdockerImageName=hello-spring-boot
+        ;;
+    *)
+        echo $"Unknown command: $1"
+        exit 1
+esac

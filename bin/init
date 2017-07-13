@@ -1,0 +1,20 @@
+#!/bin/bash
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_FILES=`find $DIR/../ -name "*" -type f | grep -v target | grep -v "\.git" | grep -v "\.gradle" | grep -v bin/init`
+
+read -p "Organization Name: " -r
+ORG=$REPLY
+
+read -p "Project Name: " -r
+PROJ=$REPLY
+
+# Update all image repository names
+echo $PROJECT_FILES | xargs -t -n 1 sed -i '' "s/quay.io\/stsatlas\/hello-spring-boot/quay.io\/stsatlas\/$ORG-$PROJ-spring-boot/"
+echo $PROJECT_FILES | xargs -t -n 1 sed -i '' "s/quay.io\/stsatlas\/sts-atlas-atlas-samples-clojure-lein/quay.io\/stsatlas\/$ORG-$PROJ-clojure-lein/"
+
+# Update org name
+echo $PROJECT_FILES | xargs -t -n 1 sed -i '' "s/atlas-demo/$ORG/"
+
+# Update project name
+echo $PROJECT_FILES | xargs -t -n 1 sed -i '' "s/atlas-samples/$PROJ/"
